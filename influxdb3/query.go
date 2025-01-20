@@ -87,6 +87,19 @@ func (c *Client) Query(ctx context.Context, query string, options ...QueryOption
 	return c.query(ctx, query, nil, newQueryOptions(&DefaultQueryOptions, options))
 }
 
+// QueryPointValue queries data from InfluxDB v3.
+// Parameters:
+//   - ctx: The context.Context to use for the request.
+//   - query: The query string to execute.
+//   - options: The optional query options. See QueryOption for available options.
+//
+// Returns:
+//   - A result iterator (*PointValueIterator).
+//   - An error, if any.
+func (c *Client) QueryPointValue(ctx context.Context, query string, options ...QueryOption) (*PointValueIterator, error) {
+	return c.queryPointValue(ctx, query, nil, newQueryOptions(&DefaultQueryOptions, options))
+}
+
 // QueryWithParameters queries data from InfluxDB v3 with parameterized query.
 // Parameters:
 //   - ctx: The context.Context to use for the request.
@@ -100,6 +113,21 @@ func (c *Client) Query(ctx context.Context, query string, options ...QueryOption
 func (c *Client) QueryWithParameters(ctx context.Context, query string, parameters QueryParameters,
 	options ...QueryOption) (*QueryIterator, error) {
 	return c.query(ctx, query, parameters, newQueryOptions(&DefaultQueryOptions, options))
+}
+
+// QueryPointValueWithParameters queries data from InfluxDB v3 with parameterized query.
+// Parameters:
+//   - ctx: The context.Context to use for the request.
+//   - query: The query string to execute.
+//   - parameters: The query parameters.
+//   - options: The optional query options. See QueryOption for available options.
+//
+// Returns:
+//   - A result iterator (*PointValueIterator).
+//   - An error, if any.
+func (c *Client) QueryPointValueWithParameters(ctx context.Context, query string, parameters QueryParameters,
+	options ...QueryOption) (*PointValueIterator, error) {
+	return c.queryPointValue(ctx, query, parameters, newQueryOptions(&DefaultQueryOptions, options))
 }
 
 // QueryWithOptions Query data from InfluxDB v3 with query options.
@@ -176,5 +204,63 @@ func (c *Client) query(ctx context.Context, query string, parameters QueryParame
 	}
 
 	iterator := newQueryIterator(reader)
+	return iterator, nil
+}
+
+func (c *Client) queryPointValue(ctx context.Context, query string, parameters QueryParameters, options *QueryOptions) (*PointValueIterator, error) {
+	var database string
+	if options.Database != "" {
+		database = options.Database
+	} else {
+		database = c.config.Database
+	}
+	if database == "" {
+		return nil, errors.New("database not specified")
+	}
+
+	var queryType = options.QueryType
+
+	md := make(metadata.MD, 0)
+	for k, v := range c.config.Headers {
+		for _, value := range v {
+			md.Append(k, value)
+		}
+	}
+	for k, v := range options.Headers {
+		for _, value := range v {
+			md.Append(k, value)
+		}
+	}
+	md.Set("authorization", "Bearer "+c.config.Token)
+	md.Set("User-Agent", userAgent)
+	ctx = metadata.NewOutgoingContext(ctx, md)
+
+	ticketData := map[string]interface{}{
+		"database":   database,
+		"sql_query":  query,
+		"query_type": strings.ToLower(queryType.String()),
+	}
+
+	if len(parameters) > 0 {
+		ticketData["params"] = parameters
+	}
+
+	ticketJSON, err := json.Marshal(ticketData)
+	if err != nil {
+		return nil, fmt.Errorf("serialize: %w", err)
+	}
+
+	ticket := &flight.Ticket{Ticket: ticketJSON}
+	stream, err := c.queryClient.DoGet(ctx, ticket)
+	if err != nil {
+		return nil, fmt.Errorf("flight do get: %w", err)
+	}
+
+	reader, err := flight.NewRecordReader(stream, ipc.WithAllocator(memory.DefaultAllocator))
+	if err != nil {
+		return nil, fmt.Errorf("flight reader: %w", err)
+	}
+
+	iterator := newPointValueIterator(reader)
 	return iterator, nil
 }
