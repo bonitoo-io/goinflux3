@@ -1,5 +1,8 @@
 ## 2.1.0 [unreleased]
 
+### Features
+1. [#131](https://github.com/InfluxCommunity/influxdb3-go/pull/131): Add new PointValueIterator based on google guidelines [Guidelines](https://github.com/googleapis/google-cloud-go/wiki/Iterator-Guidelines)
+
 ## 2.0.0 [2024-12-13]
 
 ### Breaking Changes
