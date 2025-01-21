@@ -150,64 +150,24 @@ func (c *Client) QueryWithOptions(ctx context.Context, options *QueryOptions, qu
 }
 
 func (c *Client) query(ctx context.Context, query string, parameters QueryParameters, options *QueryOptions) (*QueryIterator, error) {
-	var database string
-	if options.Database != "" {
-		database = options.Database
-	} else {
-		database = c.config.Database
-	}
-	if database == "" {
-		return nil, errors.New("database not specified")
-	}
-
-	var queryType = options.QueryType
-
-	md := make(metadata.MD, 0)
-	for k, v := range c.config.Headers {
-		for _, value := range v {
-			md.Append(k, value)
-		}
-	}
-	for k, v := range options.Headers {
-		for _, value := range v {
-			md.Append(k, value)
-		}
-	}
-	md.Set("authorization", "Bearer "+c.config.Token)
-	md.Set("User-Agent", userAgent)
-	ctx = metadata.NewOutgoingContext(ctx, md)
-
-	ticketData := map[string]interface{}{
-		"database":   database,
-		"sql_query":  query,
-		"query_type": strings.ToLower(queryType.String()),
-	}
-
-	if len(parameters) > 0 {
-		ticketData["params"] = parameters
-	}
-
-	ticketJSON, err := json.Marshal(ticketData)
+	reader, err := c.getReader(ctx, query, parameters, options)
 	if err != nil {
-		return nil, fmt.Errorf("serialize: %w", err)
+		return nil, err
 	}
 
-	ticket := &flight.Ticket{Ticket: ticketJSON}
-	stream, err := c.queryClient.DoGet(ctx, ticket)
-	if err != nil {
-		return nil, fmt.Errorf("flight do get: %w", err)
-	}
-
-	reader, err := flight.NewRecordReader(stream, ipc.WithAllocator(memory.DefaultAllocator))
-	if err != nil {
-		return nil, fmt.Errorf("flight reader: %w", err)
-	}
-
-	iterator := newQueryIterator(reader)
-	return iterator, nil
+	return newQueryIterator(reader), nil
 }
 
 func (c *Client) queryPointValue(ctx context.Context, query string, parameters QueryParameters, options *QueryOptions) (*PointValueIterator, error) {
+	reader, err := c.getReader(ctx, query, parameters, options)
+	if err != nil {
+		return nil, err
+	}
+
+	return newPointValueIterator(reader), nil
+}
+
+func (c *Client) getReader(ctx context.Context, query string, parameters QueryParameters, options *QueryOptions) (*flight.Reader, error) {
 	var database string
 	if options.Database != "" {
 		database = options.Database
@@ -261,6 +221,5 @@ func (c *Client) queryPointValue(ctx context.Context, query string, parameters Q
 		return nil, fmt.Errorf("flight reader: %w", err)
 	}
 
-	iterator := newPointValueIterator(reader)
-	return iterator, nil
+	return reader, nil
 }
