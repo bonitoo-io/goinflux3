@@ -111,13 +111,17 @@ func (i *QueryIterator) Next() bool {
 
 // AsPoints return data from InfluxDB v3 into PointValues structure.
 func (i *QueryIterator) AsPoints() *PointValues {
-	readerSchema := i.reader.Schema()
+	return rowToPointValue(i.record, i.indexInRecord)
+}
+
+func rowToPointValue(record arrow.Record, rowIndex int) *PointValues {
+	readerSchema := record.Schema()
 	p := NewPointValues("")
 
-	for ci, col := range i.record.Columns() {
+	for ci, col := range record.Columns() {
 		field := readerSchema.Field(ci)
 		name := field.Name
-		value, columnType, err := getArrowValue(col, field, i.indexInRecord)
+		value, columnType, err := getArrowValue(col, field, rowIndex)
 		if err != nil {
 			panic(err)
 		}

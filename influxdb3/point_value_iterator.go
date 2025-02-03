@@ -24,8 +24,6 @@ package influxdb3
 
 import (
 	"errors"
-	"time"
-
 	"github.com/apache/arrow/go/v15/arrow"
 	"github.com/apache/arrow/go/v15/arrow/flight"
 )
@@ -79,54 +77,11 @@ func (it *PointValueIterator) Next() (*PointValues, error) {
 		it.index = 0
 	}
 
-	pointValues, err := asPoints(it.reader.Record(), it.index)
-	if err != nil {
-		return nil, err
-	}
-
+	pointValues := rowToPointValue(it.reader.Record(), it.index)
 	return pointValues, nil
 }
 
 // Index return the current index of PointValueIterator
 func (it *PointValueIterator) Index() int {
 	return it.index
-}
-
-func asPoints(record arrow.Record, index int) (*PointValues, error) {
-	readerSchema := record.Schema()
-	p := NewPointValues("")
-
-	for ci, col := range record.Columns() {
-		field := readerSchema.Field(ci)
-		name := field.Name
-		value, columnType, err := getArrowValue(col, field, index)
-		if err != nil {
-			return nil, err
-		}
-		if value == nil {
-			continue
-		}
-
-		if stringValue, isString := value.(string); ((name == "measurement") || (name == "iox::measurement")) && isString {
-			p.SetMeasurement(stringValue)
-			continue
-		}
-
-		switch {
-		case columnType == responseColumnTypeUnknown:
-			if timestampValue, isTimestamp := value.(arrow.Timestamp); isTimestamp && name == "time" {
-				p.SetTimestamp(timestampValue.ToTime(arrow.Nanosecond))
-			} else {
-				p.SetField(name, value)
-			}
-		case columnType == responseColumnTypeField:
-			p.SetField(name, value)
-		case columnType == responseColumnTypeTag:
-			p.SetTag(name, value.(string))
-		case columnType == responseColumnTypeTimestamp:
-			p.SetTimestamp(value.(time.Time))
-		}
-	}
-
-	return p, nil
 }
