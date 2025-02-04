@@ -71,6 +71,9 @@ func (it *PointValueIterator) Next() (*PointValues, error) {
 
 	for it.record == nil || it.index >= int(it.record.NumRows()) {
 		if !it.reader.Next() {
+			if err := it.reader.Err(); err != nil {
+				return nil, err
+			}
 			return nil, Done
 		}
 		it.record = it.reader.Record()
