@@ -44,8 +44,12 @@ func TestPointValueIterator(t *testing.T) {
 		{Name: "f3", Type: arrow.PrimitiveTypes.Uint16},
 		{Name: "f4", Type: arrow.PrimitiveTypes.Int16},
 		{Name: "f5", Type: arrow.PrimitiveTypes.Uint32},
+		{Name: "f6", Type: arrow.BinaryTypes.LargeBinary},
+		{Name: "f7", Type: arrow.BinaryTypes.LargeString},
 	}, nil)
 
+	//arrow.TIME32:
+	//arrow.TIME64:
 	var buf bytes.Buffer
 	writer := ipc.NewWriter(&buf, ipc.WithSchema(schema))
 	defer writer.Close()
@@ -61,6 +65,9 @@ func TestPointValueIterator(t *testing.T) {
 	rb.Field(3).(*array.Uint16Builder).AppendValues([]uint16{3}, nil)
 	rb.Field(4).(*array.Int16Builder).AppendValues([]int16{4}, nil)
 	rb.Field(5).(*array.Uint32Builder).AppendValues([]uint32{5}, nil)
+	rb.Field(6).(*array.BinaryBuilder).AppendStringValues([]string{"6"}, nil)
+	rb.Field(7).(*array.LargeStringBuilder).AppendValues([]string{"7"}, nil)
+
 	rec = rb.NewRecord()
 	_ = writer.Write(rec)
 
@@ -70,6 +77,8 @@ func TestPointValueIterator(t *testing.T) {
 	rb.Field(3).(*array.Uint16Builder).AppendValues([]uint16{3}, nil)
 	rb.Field(4).(*array.Int16Builder).AppendValues([]int16{4}, nil)
 	rb.Field(5).(*array.Uint32Builder).AppendValues([]uint32{5}, nil)
+	rb.Field(6).(*array.BinaryBuilder).AppendStringValues([]string{"6"}, nil)
+	rb.Field(7).(*array.LargeStringBuilder).AppendValues([]string{"7"}, nil)
 
 	rec = rb.NewRecord()
 	_ = writer.Write(rec)
@@ -91,6 +100,8 @@ func TestPointValueIterator(t *testing.T) {
 	var resultSet3 []interface{}
 	var resultSet4 []interface{}
 	var resultSet5 []interface{}
+	var resultSet6 []interface{}
+	var resultSet7 []interface{}
 
 	for {
 		pointValues, err := it.Next()
@@ -106,6 +117,8 @@ func TestPointValueIterator(t *testing.T) {
 		resultSet3 = append(resultSet3, pointValues.GetField("f3"))
 		resultSet4 = append(resultSet4, pointValues.GetField("f4"))
 		resultSet5 = append(resultSet5, pointValues.GetField("f5"))
+		resultSet6 = append(resultSet6, pointValues.GetField("f6"))
+		resultSet7 = append(resultSet7, pointValues.GetField("f7"))
 	}
 
 	assert.True(t, slices.Equal([]int64{0, 0}, resultSet0))
@@ -124,6 +137,12 @@ func TestPointValueIterator(t *testing.T) {
 
 	assert.True(t, resultSet5[0] == uint32(5))
 	assert.True(t, resultSet5[1] == uint32(5))
+
+	assert.True(t, resultSet6[0].([]uint8)[0] == uint8(54))
+	assert.True(t, resultSet6[1].([]uint8)[0] == uint8(54))
+
+	assert.True(t, resultSet7[0] == "7")
+	assert.True(t, resultSet7[1] == "7")
 
 	pointValues, err := it.Next()
 	assert.Equal(t, 2, it.Index())
