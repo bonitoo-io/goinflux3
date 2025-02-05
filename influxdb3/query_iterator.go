@@ -203,74 +203,48 @@ func getArrowValue(arrayNoType arrow.Array, field arrow.Field, i int) (any, resp
 	if arrayNoType.IsNull(i) {
 		return nil, columnType, nil
 	}
-	var value any
-	switch arrayNoType.DataType().ID() {
-	case arrow.NULL:
-		value = nil
-	case arrow.BOOL:
-		value = arrayNoType.(*array.Boolean).Value(i)
-	case arrow.UINT8:
-		value = arrayNoType.(*array.Uint8).Value(i)
-	case arrow.INT8:
-		value = arrayNoType.(*array.Int8).Value(i)
-	case arrow.UINT16:
-		value = arrayNoType.(*array.Uint16).Value(i)
-	case arrow.INT16:
-		value = arrayNoType.(*array.Int16).Value(i)
-	case arrow.UINT32:
-		value = arrayNoType.(*array.Uint32).Value(i)
-	case arrow.INT32:
-		value = arrayNoType.(*array.Int32).Value(i)
-	case arrow.UINT64:
-		value = arrayNoType.(*array.Uint64).Value(i)
-	case arrow.INT64:
-		value = arrayNoType.(*array.Int64).Value(i)
-	case arrow.FLOAT16:
-		value = arrayNoType.(*array.Float16).Value(i)
-	case arrow.FLOAT32:
-		value = arrayNoType.(*array.Float32).Value(i)
-	case arrow.FLOAT64:
-		value = arrayNoType.(*array.Float64).Value(i)
-	case arrow.STRING:
-		value = arrayNoType.(*array.String).Value(i)
-	case arrow.BINARY:
-		value = arrayNoType.(*array.Binary).Value(i)
-	case arrow.FIXED_SIZE_BINARY:
-		value = arrayNoType.(*array.FixedSizeBinary).Value(i)
-	case arrow.DATE32:
-		value = arrayNoType.(*array.Date32).Value(i)
-	case arrow.DATE64:
-		value = arrayNoType.(*array.Date64).Value(i)
-	case arrow.TIMESTAMP:
-		value = arrayNoType.(*array.Timestamp).Value(i)
-	case arrow.TIME32:
-		value = arrayNoType.(*array.Time32).Value(i)
-	case arrow.TIME64:
-		value = arrayNoType.(*array.Time64).Value(i)
-	case arrow.INTERVAL_MONTHS:
-		value = arrayNoType.(*array.MonthInterval).Value(i)
-	case arrow.INTERVAL_DAY_TIME:
-		value = arrayNoType.(*array.DayTimeInterval).Value(i)
-	case arrow.DECIMAL128:
-		value = arrayNoType.(*array.Decimal128).Value(i)
-	case arrow.DECIMAL256:
-		value = arrayNoType.(*array.Decimal256).Value(i)
-	case arrow.DURATION:
-		value = arrayNoType.(*array.Duration).Value(i)
-	case arrow.LARGE_STRING:
-		value = arrayNoType.(*array.LargeString).Value(i)
-	case arrow.LARGE_BINARY:
-		value = arrayNoType.(*array.LargeBinary).Value(i)
-	case arrow.INTERVAL_MONTH_DAY_NANO:
-		value = arrayNoType.(*array.MonthDayNanoInterval).Value(i)
-	default:
-		return nil, columnType, fmt.Errorf("not supported data type: %s", arrayNoType.DataType().ID().String())
+	typeExtractor := map[arrow.Type]func(arrow.Array, int) any{
+		arrow.BOOL:                    func(arr arrow.Array, i int) any { return arr.(*array.Boolean).Value(i) },
+		arrow.UINT8:                   func(arr arrow.Array, i int) any { return arr.(*array.Uint8).Value(i) },
+		arrow.INT8:                    func(arr arrow.Array, i int) any { return arr.(*array.Int8).Value(i) },
+		arrow.UINT16:                  func(arr arrow.Array, i int) any { return arr.(*array.Uint16).Value(i) },
+		arrow.INT16:                   func(arr arrow.Array, i int) any { return arr.(*array.Int16).Value(i) },
+		arrow.UINT32:                  func(arr arrow.Array, i int) any { return arr.(*array.Uint32).Value(i) },
+		arrow.INT32:                   func(arr arrow.Array, i int) any { return arr.(*array.Int32).Value(i) },
+		arrow.UINT64:                  func(arr arrow.Array, i int) any { return arr.(*array.Uint64).Value(i) },
+		arrow.INT64:                   func(arr arrow.Array, i int) any { return arr.(*array.Int64).Value(i) },
+		arrow.FLOAT16:                 func(arr arrow.Array, i int) any { return arr.(*array.Float16).Value(i) },
+		arrow.FLOAT32:                 func(arr arrow.Array, i int) any { return arr.(*array.Float32).Value(i) },
+		arrow.FLOAT64:                 func(arr arrow.Array, i int) any { return arr.(*array.Float64).Value(i) },
+		arrow.STRING:                  func(arr arrow.Array, i int) any { return arr.(*array.String).Value(i) },
+		arrow.BINARY:                  func(arr arrow.Array, i int) any { return arr.(*array.Binary).Value(i) },
+		arrow.FIXED_SIZE_BINARY:       func(arr arrow.Array, i int) any { return arr.(*array.FixedSizeBinary).Value(i) },
+		arrow.DATE32:                  func(arr arrow.Array, i int) any { return arr.(*array.Date32).Value(i) },
+		arrow.DATE64:                  func(arr arrow.Array, i int) any { return arr.(*array.Date64).Value(i) },
+		arrow.TIMESTAMP:               func(arr arrow.Array, i int) any { return arr.(*array.Timestamp).Value(i) },
+		arrow.TIME32:                  func(arr arrow.Array, i int) any { return arr.(*array.Time32).Value(i) },
+		arrow.TIME64:                  func(arr arrow.Array, i int) any { return arr.(*array.Time64).Value(i) },
+		arrow.INTERVAL_MONTHS:         func(arr arrow.Array, i int) any { return arr.(*array.MonthInterval).Value(i) },
+		arrow.INTERVAL_DAY_TIME:       func(arr arrow.Array, i int) any { return arr.(*array.DayTimeInterval).Value(i) },
+		arrow.DECIMAL128:              func(arr arrow.Array, i int) any { return arr.(*array.Decimal128).Value(i) },
+		arrow.DECIMAL256:              func(arr arrow.Array, i int) any { return arr.(*array.Decimal256).Value(i) },
+		arrow.DURATION:                func(arr arrow.Array, i int) any { return arr.(*array.Duration).Value(i) },
+		arrow.LARGE_STRING:            func(arr arrow.Array, i int) any { return arr.(*array.LargeString).Value(i) },
+		arrow.LARGE_BINARY:            func(arr arrow.Array, i int) any { return arr.(*array.LargeBinary).Value(i) },
+		arrow.INTERVAL_MONTH_DAY_NANO: func(arr arrow.Array, i int) any { return arr.(*array.MonthDayNanoInterval).Value(i) },
 	}
 
-	if metadata, hasMetadata := field.Metadata.GetValue("iox::column::type"); hasMetadata {
-		value, columnType = getMetadataType(metadata, value, columnType)
+	dataType := arrayNoType.DataType().ID()
+	if extractor, exists := typeExtractor[dataType]; exists {
+		value := extractor(arrayNoType, i)
+
+		if metadata, hasMetadata := field.Metadata.GetValue("iox::column::type"); hasMetadata {
+			value, columnType = getMetadataType(metadata, value, columnType)
+		}
+		return value, columnType, nil
 	}
-	return value, columnType, nil
+
+	return nil, columnType, fmt.Errorf("not supported data type: %s", dataType.String())
 }
 
 func getMetadataType(metadata string, value any, columnType responseColumnType) (any, responseColumnType) {
