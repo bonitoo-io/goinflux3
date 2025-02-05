@@ -38,7 +38,12 @@ import (
 
 func TestPointValueIterator(t *testing.T) {
 	schema := arrow.NewSchema([]arrow.Field{
-		{Name: "f1", Type: arrow.PrimitiveTypes.Int64},
+		{Name: "f0", Type: arrow.PrimitiveTypes.Int64},
+		{Name: "f1", Type: arrow.PrimitiveTypes.Uint8},
+		{Name: "f2", Type: arrow.PrimitiveTypes.Int8},
+		{Name: "f3", Type: arrow.PrimitiveTypes.Uint16},
+		{Name: "f4", Type: arrow.PrimitiveTypes.Int16},
+		{Name: "f5", Type: arrow.PrimitiveTypes.Uint32},
 	}, nil)
 
 	var buf bytes.Buffer
@@ -50,11 +55,22 @@ func TestPointValueIterator(t *testing.T) {
 	rec := rb.NewRecord() // first record is empty
 	_ = writer.Write(rec)
 
-	rb.Field(0).(*array.Int64Builder).AppendValues([]int64{1, 2, 3, 4, 5}, nil)
+	rb.Field(0).(*array.Int64Builder).AppendValues([]int64{0}, nil)
+	rb.Field(1).(*array.Uint8Builder).AppendValues([]uint8{1}, nil)
+	rb.Field(2).(*array.Int8Builder).AppendValues([]int8{2}, nil)
+	rb.Field(3).(*array.Uint16Builder).AppendValues([]uint16{3}, nil)
+	rb.Field(4).(*array.Int16Builder).AppendValues([]int16{4}, nil)
+	rb.Field(5).(*array.Uint32Builder).AppendValues([]uint32{5}, nil)
 	rec = rb.NewRecord()
 	_ = writer.Write(rec)
 
-	rb.Field(0).(*array.Int64Builder).AppendValues([]int64{7, 8, 9}, nil)
+	rb.Field(0).(*array.Int64Builder).AppendValues([]int64{0}, nil)
+	rb.Field(1).(*array.Uint8Builder).AppendValues([]uint8{1}, nil)
+	rb.Field(2).(*array.Int8Builder).AppendValues([]int8{2}, nil)
+	rb.Field(3).(*array.Uint16Builder).AppendValues([]uint16{3}, nil)
+	rb.Field(4).(*array.Int16Builder).AppendValues([]int16{4}, nil)
+	rb.Field(5).(*array.Uint32Builder).AppendValues([]uint32{5}, nil)
+
 	rec = rb.NewRecord()
 	_ = writer.Write(rec)
 
@@ -69,22 +85,48 @@ func TestPointValueIterator(t *testing.T) {
 	fReader := &flight.Reader{Reader: ipcReader}
 	it := newPointValueIterator(fReader)
 
-	var resultSet []int64
+	var resultSet0 []int64
+	var resultSet1 []interface{}
+	var resultSet2 []interface{}
+	var resultSet3 []interface{}
+	var resultSet4 []interface{}
+	var resultSet5 []interface{}
+
 	for {
 		pointValues, err := it.Next()
 		if errors.Is(err, Done) {
 			break
 		}
-
 		assert.NotNil(t, pointValues)
 		assert.NoError(t, err)
 
-		resultSet = append(resultSet, *pointValues.GetIntegerField("f1"))
+		resultSet0 = append(resultSet0, *pointValues.GetIntegerField("f0"))
+		resultSet1 = append(resultSet1, pointValues.GetField("f1"))
+		resultSet2 = append(resultSet2, pointValues.GetField("f2"))
+		resultSet3 = append(resultSet3, pointValues.GetField("f3"))
+		resultSet4 = append(resultSet4, pointValues.GetField("f4"))
+		resultSet5 = append(resultSet5, pointValues.GetField("f5"))
 	}
-	assert.True(t, slices.Equal([]int64{1, 2, 3, 4, 5, 7, 8, 9}, resultSet))
+
+	assert.True(t, slices.Equal([]int64{0, 0}, resultSet0))
+
+	assert.True(t, resultSet1[0] == uint8(1))
+	assert.True(t, resultSet1[1] == uint8(1))
+
+	assert.True(t, resultSet2[0] == int8(2))
+	assert.True(t, resultSet2[1] == int8(2))
+
+	assert.True(t, resultSet3[0] == uint16(3))
+	assert.True(t, resultSet3[1] == uint16(3))
+
+	assert.True(t, resultSet4[0] == int16(4))
+	assert.True(t, resultSet4[1] == int16(4))
+
+	assert.True(t, resultSet5[0] == uint32(5))
+	assert.True(t, resultSet5[1] == uint32(5))
 
 	pointValues, err := it.Next()
-	assert.Equal(t, 4, it.Index())
+	assert.Equal(t, 2, it.Index())
 	assert.Equal(t, err, Done)
 	assert.Nil(t, pointValues)
 }
