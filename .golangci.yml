@@ -80,7 +80,7 @@ issues:
   # Excluding configuration per-path, per-linter, per-text and per-source
   exclude-rules:
     # Some code is just exceptional. Review whenever the code is changed.
-    - path: influxdb3/query_iterator\.go
+    - path: influxdb3/query_iterator\.go,influxdb3/point_value_iterator\.go
       linters:
         - gocyclo
     # Exclude some linters from running on tests files.
