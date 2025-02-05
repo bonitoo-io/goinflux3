@@ -84,6 +84,7 @@ func TestPointValueIterator(t *testing.T) {
 	assert.True(t, slices.Equal([]int64{1, 2, 3, 4, 5, 7, 8, 9}, resultSet))
 
 	pointValues, err := it.Next()
+	assert.Equal(t, 4, it.Index())
 	assert.Equal(t, err, Done)
 	assert.Nil(t, pointValues)
 }
