@@ -240,6 +240,55 @@ func TestQueryWithParameters(t *testing.T) {
 	assert.True(t, iterator.Done())
 }
 
+func TestQueryPointValue(t *testing.T) {
+	SkipCheck(t)
+	now := time.Now().UTC()
+	testId := now.UnixNano()
+
+	url := os.Getenv("TESTING_INFLUXDB_URL")
+	token := os.Getenv("TESTING_INFLUXDB_TOKEN")
+	database := os.Getenv("TESTING_INFLUXDB_DATABASE")
+
+	client, err := influxdb3.New(influxdb3.ClientConfig{
+		Host:     url,
+		Token:    token,
+		Database: database,
+	})
+	require.NoError(t, err)
+	defer client.Close()
+
+	p := influxdb3.NewPointWithMeasurement("weather5").
+		SetField("text", "a1").
+		SetField("testId", testId).
+		SetTimestamp(now)
+	err = client.WritePoints(context.Background(), []*influxdb3.Point{p})
+	require.NoError(t, err)
+	query := fmt.Sprintf(`
+			SELECT *
+				FROM weather5
+			WHERE
+				time >= now() - interval '10 minute'
+			AND
+			    "testId" = %d
+  `, testId)
+
+	sleepTime := 5 * time.Second
+	time.Sleep(sleepTime)
+
+	pointValueIterator, err := client.QueryPointValue(context.Background(), query)
+	require.NoError(t, err)
+	require.NotNil(t, pointValueIterator)
+
+	PointValue, err := pointValueIterator.Next()
+	assert.NoError(t, err)
+	assert.NotNil(t, PointValue)
+	assert.Equal(t, PointValue.GetField("text"), "a1")
+
+	PointValue, err = pointValueIterator.Next()
+	assert.Equal(t, influxdb3.Done, errors.New("no more items in iterator"))
+	assert.Nil(t, PointValue)
+}
+
 func TestQueryPointValueWithParameters(t *testing.T) {
 	SkipCheck(t)
 	now := time.Now().UTC()
