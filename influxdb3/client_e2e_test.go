@@ -27,6 +27,7 @@ package influxdb3_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math"
@@ -237,6 +238,63 @@ func TestQueryWithParameters(t *testing.T) {
 	assert.False(t, iterator.Done())
 	assert.False(t, iterator.Next())
 	assert.True(t, iterator.Done())
+}
+
+func TestQueryPointValueWithParameters(t *testing.T) {
+	SkipCheck(t)
+	now := time.Now().UTC()
+	testId := now.UnixNano()
+
+	url := os.Getenv("TESTING_INFLUXDB_URL")
+	token := os.Getenv("TESTING_INFLUXDB_TOKEN")
+	database := os.Getenv("TESTING_INFLUXDB_DATABASE")
+
+	client, err := influxdb3.New(influxdb3.ClientConfig{
+		Host:     url,
+		Token:    token,
+		Database: database,
+	})
+	require.NoError(t, err)
+	defer client.Close()
+
+	p := influxdb3.NewPointWithMeasurement("weather5").
+		SetField("text", "a1").
+		SetField("testId", testId).
+		SetTimestamp(now)
+	err = client.WritePoints(context.Background(), []*influxdb3.Point{p})
+	require.NoError(t, err)
+
+	query := `
+		SELECT *
+		FROM weather5
+		WHERE
+		time >= now() - interval '10 minute'
+		AND
+		text = $text
+		AND
+		"testId" = $testId
+		ORDER BY time
+	`
+	parameters := influxdb3.QueryParameters{
+		"text":   "a1",
+		"testId": testId,
+	}
+
+	sleepTime := 5 * time.Second
+	time.Sleep(sleepTime)
+
+	pointValueIterator, err := client.QueryPointValueWithParameters(context.Background(), query, parameters)
+	require.NoError(t, err)
+	require.NotNil(t, pointValueIterator)
+
+	PointValue, err := pointValueIterator.Next()
+	assert.NoError(t, err)
+	assert.NotNil(t, PointValue)
+	assert.Equal(t, PointValue.GetField("text"), "a1")
+
+	PointValue, err = pointValueIterator.Next()
+	assert.Equal(t, influxdb3.Done, errors.New("no more items in iterator"))
+	assert.Nil(t, PointValue)
 }
 
 func TestQueryDatabaseDoesNotExist(t *testing.T) {
